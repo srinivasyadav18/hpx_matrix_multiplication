@@ -4,6 +4,8 @@
 #include <iostream>
 #include <cstdint>
 #include <cstdlib>
+#include <chrono>
+#include <utility>
 
 using matrix = std::vector<std::vector<std::uint64_t>>;
 
@@ -16,9 +18,11 @@ int sub_mul(const matrix& m1 ,const matrix &m2, uint64_t row, uint64_t col, uint
     return partial_result;
 }
 
-matrix sequential(const matrix &m1, const matrix &m2, const uint64_t n)
+std::pair<std::chrono::duration<double>,matrix> sequential(const matrix &m1, const matrix &m2, const uint64_t n)
 {
     matrix result(n, std::vector<uint64_t> (n));
+
+    auto t1 = std::chrono::high_resolution_clock::now();
     for (uint64_t i = 0; i < n; i++)
     {
         for (int j = 0; j < n; j++)
@@ -26,7 +30,28 @@ matrix sequential(const matrix &m1, const matrix &m2, const uint64_t n)
             result[i][j] = sub_mul(m1, m2, i, j, n);
         }
     }
-    return result;
+    auto t2 = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = t2 - t1;
+
+    return std::make_pair(elapsed, result);
+}
+
+std::pair<std::chrono::duration<double>,matrix> parallel(const matrix &m1, const matrix &m2, const uint64_t n)
+{
+    matrix result(n, std::vector<uint64_t> (n));
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    for (uint64_t i = 0; i < n; i++)
+    {
+        hpx::for_loop(hpx::execution::par, 0, n, [&](auto j){
+            result[i][j] = sub_mul(m1, m2, i, j, n);
+        });
+    }
+    auto t2 = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = t2 - t1;
+
+    return std::make_pair(elapsed, result);
 }
 
 int hpx_main(hpx::program_options::variables_map& vm)
@@ -45,7 +70,15 @@ int hpx_main(hpx::program_options::variables_map& vm)
         }
     }
     
-    matrix result = sequential(m1, m2, n);
+    auto seq_res = sequential(m1, m2, n);
+    auto par_res = parallel(m1, m2, n);
+    if (seq_res.second != par_res.second) 
+        std::cout << "Failed";
+    else 
+    {
+        std::cout << "Time Elapsed sequential : " << seq_res.first.count() << "s\n";
+        std::cout << "Time Elapsed parallel : "   << par_res.first.count() << "s\n";
+    }
     return hpx::finalize();
 }
 
