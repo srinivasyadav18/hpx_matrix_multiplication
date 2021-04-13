@@ -9,6 +9,8 @@
 
 using matrix = std::vector<std::vector<std::uint64_t>>;
 using result_t = std::pair<std::chrono::duration<double>, matrix>;
+
+// helper function for inner most loop
 int sub_mul(const matrix &m1, const matrix &m2, uint64_t row, uint64_t col,
             uint64_t depth) {
   std::uint64_t partial_result = 0;
@@ -17,6 +19,8 @@ int sub_mul(const matrix &m1, const matrix &m2, uint64_t row, uint64_t col,
   return partial_result;
 }
 
+
+// sequential multiplication for calculating speed
 result_t sequential(const matrix &m1, const matrix &m2, const uint64_t n) {
   matrix result(n, std::vector<uint64_t>(n));
 
@@ -32,6 +36,7 @@ result_t sequential(const matrix &m1, const matrix &m2, const uint64_t n) {
   return std::make_pair(elapsed, result);
 }
 
+// using parallel for_loop
 result_t parallel(const matrix &m1, const matrix &m2, const uint64_t n) {
   matrix result(n, std::vector<uint64_t>(n));
 
@@ -47,20 +52,19 @@ result_t parallel(const matrix &m1, const matrix &m2, const uint64_t n) {
   return std::make_pair(elapsed, result);
 }
 
+// Block and async algorithm.
+// Each block can be calculated in async fashion as tasks are independent.
+// Here I am using const block size of 16.
 result_t blocked(matrix const &m1, matrix const &m2, const uint64_t n) {
   matrix result(n, std::vector<uint64_t>(n));
-  uint64_t b = 16;
+  const uint64_t b = 16; // block size of 16
 
   auto fn = [&](uint64_t i, uint64_t k) {
-    for (uint64_t j = 0; j < n; j += b) {
-      for (uint64_t br = i; br < i + b; br++) {
-        for (uint64_t bc = k; bc < k + b; bc++) {
-          for (uint64_t bd = j; bd < j + b; bd++) {
+    for (uint64_t j = 0; j < n; j += b)
+      for (uint64_t br = i; br < i + b; br++)
+        for (uint64_t bc = k; bc < k + b; bc++)
+          for (uint64_t bd = j; bd < j + b; bd++)
             result[br][bc] += m1[br][bd] * m2[bd][bc];
-          }
-        }
-      }
-    }
   };
 
   std::vector<hpx::future<void>> results;
